@@ -1,0 +1,509 @@
+#!/usr/bin/env python
+
+# power-relay.py --help
+
+# see if host(s) on outside network are reachable via ping.  If not, reset a 
+# device, likely a cable-modem, that is known to be flakey, by power cycling
+# it via a relay
+
+# This is intended to be run on a Raspberry Pi, using a 'IoT Power Relay
+# version 2' from Digital Loggers, to use GPIO to power-cycle a device.
+# The power relay is plugged into a UPS, while the Raspberry Pi is plugged
+# into the 'always ON' power port and the cable-modem is plugged into the
+# 'normally ON' power port.  The program, when detecting a loss of network
+# connectivity, will drop power on the 'normally ON' port, and bring it 
+# back after a short period.
+#   https://dlidirect.com/products/iot-power-relay
+# Typically run from the cron every couple of minutes
+
+# If run on something other than a Raspberry Pi, it will assume it is
+# a development or test box and will NOT do the actual shutdown, but
+# will still do everything else.  On the Raspberry Pi, you will need the
+# RPi.GPIO module installed
+#   sudo apt-get install rpi.gpio
+# This will only imported if run on a Raspberry Pi.
+
+# There is a goofy option called -e or --delay-exit
+# The reason for this is that if you do not use the --quiet option, then
+# an informational message is printed out before the program exits.  But if
+# you are relying on ouput from the crontab to then be sent to you on some
+# other machine via e-mail, it will fail if you do not have a full blown
+# mailer set up and the DNS lookup for the destination will fail because the 
+# device (cable-modem?) has not recovered yet.  So, this delay will give the
+# device time to recover, before you spit out the message and then exit.
+# The default is no delay.
+
+
+import os
+import sys
+import time
+import re
+import getpass
+
+debug_flag      = False
+help_flag       = False
+logging_flag    = False
+force_flag      = False
+quiet_flag      = False
+
+reset_time      = 15        # time between setting pin_number HIGH, then LOW
+wait_time       = 10 * 60   # wait time to reset again after a previous reset
+delay_exit_wait = 0         # delay time before we output a message and exit
+
+device_name     = 'device'  # use device name in log message
+ping_tries      = 3         # number of times to ping each host
+pin_number      = 25        # GPIO pin number
+log_file        = ""        # LOG file.  none by default
+lock_file       = "/tmp/pi-power-relay--reset-time"
+
+hosts           = [ '8.8.8.8' ]     # DNS server
+
+version         = 'v1.0'
+progname        = sys.argv[0]
+progname        = os.path.basename( progname )
+
+
+# debug function if --debug|-d option given
+#
+# Arguments:
+#   string to print
+# Returns:
+#   0
+# Globals:
+#   debug_flag
+
+def dprint( msg ):
+    global debug_flag
+
+    if debug_flag == False: return(0)
+    print "debug: " + msg
+    return(0) ;
+
+
+# print usage
+#
+# Arguments:
+#   none
+# Returns:
+#   0
+
+def usage():
+    print "usage: {0:s} [options]*".format( sys.argv[0] )
+    print "   [-d|--debug]               (debugging output)"
+    print "   [-e|--delay-exit num]      (delay time before output and exit.",
+    print " default={0:d} secs)".format ( delay_exit_wait)
+
+    print "   [-f|--force-reset]         (reset now and quit, despite state or lock)"
+    print "   [-h|--help]                (print this help info)"
+
+    print "   [-l|--logfile string]      (log filename.",
+    print "none by default)"
+
+    print "   [-p|--pin num ]            (GPIO pin number.",
+    print " default={0:d})".format ( pin_number )
+
+    print "   [-q|--quiet]               (supress informational messages)"
+    print "   [-r|--reset-time num]      (wait time between GPIO pin state change.",
+    print " default={0:d} secs)".format ( reset_time )
+
+    print "   [-t|--tries num]           (number of ping attempts per host.",
+    print " default={0:d})".format ( ping_tries )
+
+    print "   [-w|--wait-time num]       (wait time to reset after previous reset.",
+    print " default={0:d} secs)".format ( wait_time )
+
+    print "   [-D|--device-name string]  (name of thing being reset for log.",
+    print " default='{0:s}')".format ( device_name )
+
+    print "   [-H|--hosts string(s)]     (comma-delimited hosts to ping.",
+    print " default={0:s})".format ( ','.join( hosts ))
+
+    print "   [-V|--version]             (print version of this program)"
+
+    return(0)
+
+
+# ping a host
+#
+# Arguments:
+#   1:  host
+#   2:  number of tries
+# Returns:
+#   0:  down
+#   1:  up
+# Globals:
+#   none   
+
+def ping( host, tries=3 ):
+    my_name = sys._getframe().f_code.co_name
+
+    for i in range( tries ):
+        response = os.system( "ping -c 1 -w2 " + host + " > /dev/null 2>&1" )
+
+        state = "down"
+        if response == 0:
+            state = "up"
+
+        dprint( "{0:s}(): try #{1:d} response for {2:s} is {3:d} ({4:s})". \
+            format( my_name, i+1, host, response, state ))
+
+        if response == 0:
+            return(1)   # up
+
+    return(0)   # down
+
+
+# test if network reachable given an array of hosts to ping
+#
+# Arguments:
+#   none
+# Returns:
+#   0:  down
+#   1:  up
+# Globals:
+#   none
+
+def test_network( hosts, tries=3):
+    my_name = sys._getframe().f_code.co_name
+
+    result = 0          # assume not reachable
+
+    for host in hosts:
+        dprint( "{0:s}(): testing host \'{1:s}\' with ping". \
+            format( my_name, host ))
+        response = ping( host, tries )
+        if response == 1:
+            result = 1       # host on network is reachable
+            break
+
+    state  = 'down'
+    if ( result == 1 ):
+        state = 'up'
+
+    dprint( "{0:s}(): final result = {1:d} ({2:s})". \
+        format( my_name, result, state ))
+
+    return( result )
+
+
+# reset a device
+#
+# Arguments:
+#   1:  GPIO pin number
+#   2:  wait time between pin toggles
+# Returns:
+#   0
+# Globals:
+#   GPIO_active
+#   device_name
+
+def reset_device( pin_num, wait_time, lock_file ):
+    my_name = sys._getframe().f_code.co_name
+
+    if GPIO_active:
+        GPIO.setmode( GPIO.BCM )
+        GPIO.setup( pin_num, GPIO.OUT )
+    else:
+        if not quiet_flag:
+            print "GPIO not active.  simulating RESET of {0:s}". \
+                format( device_name )
+
+    dprint( "{0:s}(): setting PIN {1:d} HIGH". \
+            format( my_name, pin_num ))
+    if GPIO_active:
+        GPIO.output( pin_num, GPIO.HIGH )
+
+    dprint( "{0:s}(): sleeping for {1:d} seconds". \
+        format( my_name, wait_time ))
+    time.sleep( wait_time )
+
+    dprint( "{0:s}(): setting PIN {1:d} LOW". \
+            format( my_name, pin_num ))
+    if GPIO_active:
+        GPIO.output( pin_num, GPIO.LOW )
+
+        # shut it all down
+        GPIO.cleanup()
+
+    write_timestamp( lock_file )
+
+    return(0)
+
+
+# write a timestamp to a file
+#   line1:  seconds since epoch - to be read by this program
+#   line2:  human readable string of reset time
+#
+# Arguments:
+#   filename
+# Returns:
+#   0
+# Globals:
+#   device_name
+
+def write_timestamp( file ):
+    my_name = sys._getframe().f_code.co_name
+
+    dprint( "{0:s}(): writing timestamp lock to {1:s}". \
+            format( my_name, file ))
+
+    now_num = int( time.time())
+    now_str = time.strftime( "%a %b %d, %Y %H:%M:%S" )
+    try:
+        f = open( file, "w" )
+        f.write( str( now_num ) + "\n" )
+        f.write( "{0:s}: reset {1:s} at {2:s}\n". \
+            format( progname, device_name, now_str ))
+        f.close()
+    except (IOError) as err:
+        pass
+
+    return(0)
+
+
+# log a message
+#
+# Arguments:
+#   1:  filename
+#   2:  message
+# Returns:
+#   1:  an error occurred
+#   0:  success
+# Globals:
+#   progname
+
+def logit( file, message ):
+    try:
+        f = open( file, "a" )
+        now = time.strftime( "%a %b %d, %Y @ %H:%M" )
+        f.write( now + ": " + message )
+        f.close()
+    except (IOError) as err:
+        sys.stderr.write( "{0:s}: {1:s}\n". \
+            format( progname, err ))
+        return(1)
+
+    return(0)
+
+
+# test if there is a lock in place for resetting
+# reads a file previously written on last reset.
+# 1st line is Unix epoch timestamp.
+#
+# Arguments:
+#   1:  lock filename
+#   2:  number seconds to honour lock since last reset
+# Returns:
+#   0:  no lock
+#   1:  locked
+# Globals:
+#   none
+
+def is_reset_locked( file, wait_time ):
+    my_name = sys._getframe().f_code.co_name
+    try:
+        f = open( file, "r" )
+
+        # get the last reset timestamp - its on the 1st line
+        last_time = int( f.readline().rstrip())
+        if is_int( last_time ) == False:
+            return(0)   # give up - no lock
+
+        now = int( time.time())
+        diff = now - last_time
+        f.close()
+
+        dprint( "{0:s}(): Got last reset timestamp of {1:d}". \
+            format( my_name, last_time ))
+        dprint( "{0:s}(): {1:d} seconds since last reboot". \
+            format( my_name, diff ))
+
+        if diff < wait_time:
+            dprint( "{0:s}(): reset lock in place. {1:d} < {2:d} seconds". \
+                format( my_name, wait_time, diff ))
+            return(1)   # locked
+
+    except (IOError) as err:
+        pass
+        return(0)       # no lock
+
+    return(0)
+
+
+# Test to see if a string is an integer
+#
+# Arguments:
+#   1:  string
+# Returns:
+#   True:   an integer
+#   False:  not an integer
+# Globals:
+#   none
+
+def is_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+def die( error ):
+    sys.stderr.write( "{0:s}: {1:s}\n".format( progname, error ))
+    sys.exit(1)
+
+
+
+# main-line program
+
+# get options
+
+num_args = len( sys.argv )
+i = 1
+while i < num_args:
+    try:
+        arg = sys.argv[i]
+        if arg == '-d' or arg == '--debug':
+            debug_flag = True
+        elif arg == '-h' or arg == '--help':
+            help_flag = True
+        elif arg == '-f' or arg == '--force-reset':
+            force_flag = True
+        elif arg == '-q' or arg == '--quiet':
+            quiet_flag = True
+        elif arg == '-r' or arg == '--reset-time':
+            i = i + 1 ; reset_time = sys.argv[i]
+            if is_int( reset_time ) == False:
+                die( "Not an integer: \'{0:s}\'".format( reset_time ))
+            reset_time = int( reset_time )
+        elif arg == '-w' or arg == '--wait-time':
+            i = i + 1 ; wait_time = sys.argv[i]
+            if is_int( wait_time ) == False:
+                die( "Not an integer: \'{0:s}\'".format( wait_time ))
+            wait_time = int( wait_time )
+        elif arg == '-t' or arg == '--tries':
+            i = i + 1 ; ping_tries = sys.argv[i]
+            if is_int( ping_tries ) == False:
+                die( "Not an integer: \'{0:s}\'".format( ping_tries ))
+            ping_tries = int( ping_tries )
+        elif arg == '-e' or arg == '--delay-exit':
+            i = i + 1 ; delay_exit_wait = sys.argv[i]
+            if is_int( delay_exit_wait ) == False:
+                die( "Not an integer: \'{0:s}\'".format( delay_exit_wait ))
+            delay_exit_wait = int( delay_exit_wait )
+        elif arg == '-p' or arg == '--pin':
+            i = i + 1 ; pin_number = sys.argv[i]
+            if is_int( pin_number ) == False:
+                die( "Not an integer: \'{0:s}\'".format( pin_number ))
+            pin_number = int( pin_number )
+            if ( pin_number > 27 ) or ( pin_number < 0 ):
+                sys.stderr.write( "{0:s}: invalid pin number: \'{1:d}\'\n". \
+                    format( progname, pin_number ))
+                sys.exit(1)
+        elif arg == '-D' or arg == '--device-name':
+            i = i + 1 ; device_name = sys.argv[i]
+        elif arg == '-l' or arg == '--logfile':
+            i = i + 1 ; log_file = sys.argv[i]
+            logging_flag = True
+        elif arg == '-H' or arg == '--hosts':
+            i = i + 1 ; host_list = sys.argv[i]
+            hosts = host_list.split( "," )
+        elif arg == '-V' or arg == '--version':
+            print "version: {0:s}".format( version )
+            sys.exit(0)
+        else:
+            m = re.match( "^\-", arg )
+            if m:
+                sys.stderr.write( "{0:s}: unknown option: \'{1:s}\'\n". \
+                    format( progname, arg ))
+                sys.exit(1)
+            else:
+                sys.stderr.write( "{0:s}: unknown option: \'{1:s}\'\n". \
+                    format( progname, arg ))
+                sys.exit(1)
+
+    except IndexError as err:
+        sys.stderr.write( "{0:s}: {1:s}.  Missing argument value to \'{2:s}\'?\n". \
+            format( progname, err, arg ))
+        sys.exit(1)
+
+    i = i+1
+
+# now that we have processed all our options, our usage can show
+# defaults properly
+
+if help_flag:
+    usage()
+    sys.exit(0)
+
+# See if we are running on our target Raspberry pi.
+# Anything else will be a development or test environment
+
+GPIO_active = False
+pi = os.uname()[4].lower().startswith( 'arm' )
+if pi == True:
+    dprint( "Running on a Raspberry Pi." )
+    import RPi.GPIO as GPIO
+    GPIO_active = True
+
+    # need to be root for access to memory
+    if getpass.getuser() != 'root':
+        sys.stderr.write( "{0:s}: Need to be root to use GPIO\n". \
+            format( progname ))
+        sys.exit(1)
+else:
+    # development/debugging code
+    dprint( "I'm NOT running on a Raspberry Pi (" + os.uname()[4] + ")"  )
+    dprint( "Assuming I'm a development/test box - will NOT shutdown device" )
+
+
+# see if we want to force a reset, no matter what
+
+if force_flag:
+    reset_device( pin_number, reset_time, lock_file )
+
+    if not quiet_flag:
+        print "{0:s} reset at {1:s}". \
+            format( device_name, time.strftime( "%a %b %d, %Y %H:%M:%S" ))
+
+    sys.exit(0)
+
+
+state = test_network( hosts, ping_tries )
+
+# If network down (state = 0), reset device
+try:
+    if state:
+        # still up
+        dprint( "Nothing to do. All is well.  exiting." )
+        sys.exit(0)
+
+    if is_reset_locked( lock_file, wait_time ):
+        dprint( "timing lock set.  skipping reset" )
+    else:
+        if ( logging_flag ):
+            msg = "{0:s}: network unreachable.  resetting {1:s}\n". \
+                format( progname, device_name )
+            logit( log_file, msg )
+
+        # been long enough since last reset.  do it now
+
+        reset_device( pin_number, reset_time, lock_file )
+
+        # informational message to print.  Get the real time first
+        # before a potential delay exit
+
+        msg = "{0:s} reset at {1:s}". \
+            format( device_name, time.strftime( "%a %b %d, %Y %H:%M:%S" ))
+
+        if ( delay_exit_wait ):
+            dprint( "delay exit.  waiting {0:d} seconds".format( delay_exit_wait ))
+            time.sleep( delay_exit_wait )
+
+        if not quiet_flag:
+            print msg
+
+except ( KeyboardInterrupt ) as err:
+    pass
+
+sys.exit(0)

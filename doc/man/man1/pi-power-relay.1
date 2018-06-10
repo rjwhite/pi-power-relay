@@ -1,0 +1,130 @@
+.TH pi-power-relay 1
+.SH NAME
+pi-power-relay \- power cycle a device from a Raspberry Pi when network connectivity lost
+.SH SYNOPSIS
+.B pi-power-relay
+[
+.B \-dfhqV
+]
+[
+.B \-e delay-exit
+]
+[
+.B \-p GPIO-pin-num
+]
+[
+.B \-r reset-wait-time
+]
+[
+.B \-t ping-tries
+]
+[
+.B \-w reset-wait-time
+]
+[
+.B \-D device-name
+]
+[
+.B \-H host-list
+]
+[
+.B \-l log-file
+]
+
+.SH OPTIONS
+.TP
+\fB\-d|--debug\fR
+print debugging messages
+.TP
+\fB\-e|--delay-exit\fR seconds
+delay time before output and exit.
+.TP
+\fB\-f|--force-reset\fR
+reset now and quit, despite state or lock
+.TP
+\fB\-h|--help\fR
+print usage and exit.
+.TP
+\fB\-l|--logfile \fR string
+log filename. none by default
+.TP
+\fB\-p|--pin \fR number
+GPIO pin number.  default=25
+.TP
+\fB\-q|--quiet
+supress informational messages
+.TP
+\fB\-r|--reset-time\fR seconds
+wait time between GPIO pin state change.  default=15 secs
+.TP
+\fB\-t|--tries\fR number
+number of ping attempts per host.  default=3
+.TP
+\fB\-w|--wait-time\fR seconds
+wait time to reset after previous reset.  default=600 secs
+.TP
+\fB\-D|--device-name\fR string
+name of thing being reset for log.  default='device'
+.TP
+\fB\-H|--hosts\fR string(s)
+comma-delimited hosts to ping.  default=8.8.8.8
+.TP
+\fB\-V|--version\fR
+print version of the program and exit
+.SH EXAMPLES
+.TP
+pi-power-relay --hosts 208.67.222.222,8.8.8.8
+This will ping the hosts 208.67.222.222 and 8.8.8.8.  If either of them responds back
+correctly, then the program will exit with no action.
+.TP
+pi-power-relay -D 'cable-modem' -L /var/log/power-relay
+This will log any resets to the log file /var/log/power-relay and will use the
+device name of 'cable-modem' in the log entry.  
+.TP
+pi-power-relay --delay-exit 180
+The reason for this option is that if you do not use the
+--quiet option, then an informational message is printed out before
+the program exits.  But if you are relying on ouput from the crontab
+to then be sent to you on some other machine via e-mail, it will fail
+if you do not have a full blown mailer set up and the DNS lookup for
+the destination will fail because the device (cable-modem?) has not
+recovered yet.  So, this delay will give the device time to recover,
+before you spit out the message and then exit.  The default is no delay.
+In the event of a reset, a typical log entry would look like:
+
+    Fri Jun 08, 2018 @ 16:38: pi-power-relay: 
+        network unreachable.  resetting cable-modem
+
+.SH DESCRIPTION
+.I pi-power-relay
+will ping one or more hosts to see if they respond.
+If the host(s) on outside network are not reachable via ping, then reset a 
+device, likely a cable-modem, that is known to be flakey, by power cycling
+it via a power relay.
+.PP
+This is intended to be run on a Raspberry Pi, using an 'IoT Power Relay
+version 2' from Digital Loggers, to use GPIO to power-cycle a device.
+The power relay is plugged into a UPS, while the Raspberry Pi is plugged
+into the 'always ON' power port and the device (cable-modem?) is plugged into the
+\'normally ON\' power port.  The program, when detecting a loss of network
+connectivity, will drop power on the 'normally ON' port, and bring it 
+back after a short period.  See the power relay product at:
+.PP
+    https://dlidirect.com/products/iot-power-relay
+.PP
+This is typically run from the cron every couple of minutes.
+.PP
+If run on something other than a Raspberry Pi, it will assume it is
+a development or test box and will NOT do the actual shutdown, but
+will still do everything else.  On the Raspberry Pi, you will need the
+RPi.GPIO module installed
+.PP
+    sudo apt-get install rpi.gpio
+.PP
+This module will only imported if run on a Raspberry Pi.
+.SH AUTHOR
+RJ White
+.br
+rj@moxad.com
+.br
+Moxad Enterprises Inc.
