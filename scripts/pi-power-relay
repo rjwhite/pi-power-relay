@@ -49,6 +49,7 @@ quiet_flag      = False
 
 reset_time      = 15        # time between setting pin_number HIGH, then LOW
 wait_time       = 10 * 60   # wait time to reset again after a previous reset
+ping_timeout    = 2         # how long to wait for ping to time out
 delay_exit_wait = 0         # delay time before we output a message and exit
 
 device_name     = 'device'  # use device name in log message
@@ -59,7 +60,7 @@ lock_file       = "/tmp/pi-power-relay--reset-time"
 
 hosts           = [ '8.8.8.8' ]     # DNS server
 
-version         = 'v1.0'
+version         = 'v1.1'
 progname        = os.path.basename( sys.argv[0] )
 
 
@@ -112,6 +113,9 @@ def usage():
     print "   [-w|--wait-time num]       (wait time to reset after previous reset.",
     print " default={0:d} secs)".format ( wait_time )
 
+    print "   [-x|--ping-timeout num]    (wait time for ping to time out.",
+    print " default={0:d} secs)".format ( ping_timeout )
+
     print "   [-D|--device-name string]  (name of thing being reset for log.",
     print " default='{0:s}')".format ( device_name )
 
@@ -128,24 +132,25 @@ def usage():
 # Arguments:
 #   1:  host
 #   2:  number of tries
+#   3:  timeout for ping
 # Returns:
 #   0:  down
 #   1:  up
 # Globals:
-#   none   
+#   none
 
-def ping( host, tries=3 ):
+def ping( host, tries=3, timeout=2 ):
     my_name = sys._getframe().f_code.co_name
 
     for i in range( tries ):
-        response = os.system( "ping -c 1 -w2 " + host + " > /dev/null 2>&1" )
+        response = os.system( "ping -c 1 -w" + str(timeout) + " " + host + " > /dev/null 2>&1" )
 
         state = "down"
         if response == 0:
             state = "up"
 
-        dprint( "{0:s}(): try #{1:d} response for {2:s} is {3:d} ({4:s})". \
-            format( my_name, i+1, host, response, state ))
+        dprint( "{0:s}(): try #{1:d} ping response (timeout={2:d}) for {3:s} is {4:d} ({5:s})". \
+            format( my_name, i+1, timeout, host, response, state ))
 
         if response == 0:
             return(1)   # up
@@ -156,14 +161,16 @@ def ping( host, tries=3 ):
 # test if network reachable given an array of hosts to ping
 #
 # Arguments:
-#   none
+#   1:  array of hosts
+#   2:  number of pings to try for each host in host-list
+#   3:  timeout for ping
 # Returns:
 #   0:  down
 #   1:  up
 # Globals:
 #   none
 
-def test_network( hosts, tries=3):
+def test_network( hosts, tries=3, timeout=2 ):
     my_name = sys._getframe().f_code.co_name
 
     result = 0          # assume not reachable
@@ -171,7 +178,7 @@ def test_network( hosts, tries=3):
     for host in hosts:
         dprint( "{0:s}(): testing host \'{1:s}\' with ping". \
             format( my_name, host ))
-        response = ping( host, tries )
+        response = ping( host, tries, timeout )
         if response == 1:
             result = 1       # host on network is reachable
             break
@@ -320,7 +327,7 @@ def is_reset_locked( file, wait_time ):
 
         if diff < wait_time:
             dprint( "{0:s}(): reset lock in place. {1:d} < {2:d} seconds". \
-                format( my_name, wait_time, diff ))
+                format( my_name, diff, wait_time ))
             return(1)   # locked
 
     except (IOError) as err:
@@ -391,6 +398,11 @@ while i < num_args:
             if is_int( delay_exit_wait ) == False:
                 die( "Not an integer: \'{0:s}\'".format( delay_exit_wait ))
             delay_exit_wait = int( delay_exit_wait )
+        elif arg == '-x' or arg == '--ping-timeout':
+            i = i + 1 ; ping_timeout = sys.argv[i]
+            if is_int( ping_timeout ) == False:
+                die( "Not an integer: \'{0:s}\'".format( ping_timeout ))
+            ping_timeout = int( ping_timeout )
         elif arg == '-p' or arg == '--pin':
             i = i + 1 ; pin_number = sys.argv[i]
             if is_int( pin_number ) == False:
@@ -469,7 +481,7 @@ if force_flag:
     sys.exit(0)
 
 
-state = test_network( hosts, ping_tries )
+state = test_network( hosts, ping_tries, ping_timeout )
 
 # If network down (state = 0), reset device
 try:

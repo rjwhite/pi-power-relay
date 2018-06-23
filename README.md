@@ -66,6 +66,7 @@ There is a help option.  For eg:
         [-r|--reset-time num]      (wait time between GPIO pin state change.  default=15 secs)
         [-t|--tries num]           (number of ping attempts per host.  default=3)
         [-w|--wait-time num]       (wait time to reset after previous reset.  default=600 secs)
+        [-x|--ping-timeout num]    (wait time for ping to time out.  default=2 secs)
         [-D|--device-name string]  (name of thing being reset for log.  default='device')
         [-H|--hosts string(s)]     (comma-delimited hosts to ping.  default=8.8.8.8)
         [-V|--version]             (print version of this program)

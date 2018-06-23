@@ -27,3 +27,6 @@ man:
 		mkdir -p ${USER_MANPAGES} ; \
 		cp doc/man/man1/*.1 ${USER_MANPAGES} ; \
 	fi
+
+sdist:
+		python setup.py sdist
