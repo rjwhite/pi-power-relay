@@ -3,34 +3,17 @@
 pi-power-relay \- power cycle a device from a Raspberry Pi when network connectivity lost
 .SH SYNOPSIS
 .B pi-power-relay
-[
-.B \-dfhqV
-]
-[
-.B \-e delay-exit
-]
-[
-.B \-p GPIO-pin-num
-]
-[
-.B \-r reset-wait-time
-]
-[
-.B \-t ping-tries
-]
-[
-.B \-w reset-wait-time
-]
-[
-.B \-D device-name
-]
-[
-.B \-H host-list
-]
-[
-.B \-l log-file
-]
-
+.B [\-dfhqV]
+.B [\-e delay-exit]
+.B [\-l log-file]
+.B [\-m HH:MM-HH:MM]*
+.B [\-p GPIO-pin-num]
+.B [\-r reset-wait-time]
+.B [\-t ping-tries]
+.B [\-w reset-wait-time]
+.B [\-x ping-timeout]
+.B [\-D device-name]
+.B [\-H host-list]
 .SH OPTIONS
 .TP
 \fB\-d|--debug\fR
@@ -48,11 +31,14 @@ print usage and exit.
 \fB\-l|--logfile \fR string
 log filename. none by default
 .TP
+\fB\-m|--maint\fR HH:MM-HH:MM
+maintenance period.  Don\'t reset during any of these maintenance periods.
+.TP
 \fB\-p|--pin \fR number
 GPIO pin number.  default=25
 .TP
 \fB\-q|--quiet
-supress informational messages
+suppress informational messages
 .TP
 \fB\-r|--reset-time\fR seconds
 wait time between GPIO pin state change.  default=15 secs
@@ -62,6 +48,9 @@ number of ping attempts per host.  default=3
 .TP
 \fB\-w|--wait-time\fR seconds
 wait time to reset after previous reset.  default=600 secs
+.TP
+\fB\-x|--ping-timeout\fR seconds
+wait time for ping to time out.  default=2 secs
 .TP
 \fB\-D|--device-name\fR string
 name of thing being reset for log.  default='device'
@@ -81,10 +70,17 @@ pi-power-relay -D 'cable-modem' -l /var/log/power-relay
 This will log any resets to the log file /var/log/power-relay and will use the
 device name of 'cable-modem' in the log entry.  
 .TP
+pi-power-relay -m 01:20-01:40 -m 03:45-04:30
+This specifies that there are maintenance periods between 1:30am to 1:40am and
+between 3:45am and 4:30am.  Do not do a reset during any of these maintenance 
+windows if a network outage is detected.  A time range cannot cross a day boundary.
+If you need to cross a day boundary (at midnight), then specify more than one
+period.
+.TP
 pi-power-relay --delay-exit 180
 The reason for this option is that if you do not use the
 --quiet option, then an informational message is printed out before
-the program exits.  But if you are relying on ouput from the crontab
+the program exits.  But if you are relying on output from the crontab
 to then be sent to you on some other machine via e-mail, it will fail
 if you do not have a full blown mailer set up and the DNS lookup for
 the destination will fail because the device (cable-modem?) has not

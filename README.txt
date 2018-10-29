@@ -44,6 +44,11 @@ correctly, then the program will exit with no action.
 This will log any resets to the log file /var/log/power-relay and will use the
 device name of 'cable-modem' in the log entry.
 
+    % pi-power-relay --maint 01:20-01:40
+
+This will prevent a reset of the device if the network goes away from 1:20am to 1:40am
+during a known network maintenance period.
+
     % pi-power-relay --delay-exit 180
 
 The reason for this option is that if you do not use the --quiet option,
@@ -65,6 +70,7 @@ There is a help option.  For eg:
         [-f|--force-reset]         (reset now and quit, despite state or lock)
         [-h|--help]                (print this help info)
         [-l|--logfile string]      (log filename. none by default)
+        [-m|--maint HH:MM-HH:MM]*  (Maintenance time to NOT reset. none by default)
         [-p|--pin num ]            (GPIO pin number.  default=25)
         [-q|--quiet]               (supress informational messages)
         [-r|--reset-time num]      (wait time between GPIO pin state change.  default=15 secs)

@@ -6,3 +6,18 @@
         - added -x|--ping-timeout option to change ping timeout from
           default of 2 seconds
         - added a sdist target in the Makefile
+
+1.2     Oct 28, 2018
+         - added a -m|--maint option to specify a known maintenance time
+           that your outside network conection will not be available.
+           Can be given multiple times.
+           During these time periods, do NOT reset the device
+        - made main line coding into a main() function and call it if
+          __name__ == '__main__'
+        - made proper docstrings for functions instead of traditional
+          comments before the function declaration.  (fat lot of
+          good it'll do when the command name uses hyphens instead of
+          underscores and doesn't end in .py)
+        - added example to README.txt and README.md
+        - updated man page for -m option.  added missing -x.  fixed stuff.
+        - updated version in setup.py

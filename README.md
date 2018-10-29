@@ -35,6 +35,11 @@ This module will only be imported if run on a Raspberry Pi.
 This will ping the hosts 208.67.222.222 and 8.8.8.8.  If either of them responds back
 correctly, then the program will exit with no action.
 
+    % pi-power-relay --maint 01:20-01:40
+
+This will prevent a reset of the device if the network goes away from 1:20am to 1:40am
+during a known network maintenance period.
+    
     % pi-power-relay --device-name 'cable-modem' --logfile /var/log/power-relay
 
 This will log any resets to the log file /var/log/power-relay and will use the
@@ -61,6 +66,7 @@ There is a help option.  For eg:
         [-f|--force-reset]         (reset now and quit, despite state or lock)
         [-h|--help]                (print this help info)
         [-l|--logfile string]      (log filename. none by default)
+        [-m|--maint HH:MM-HH:MM]*  (Maintenance time to NOT reset. none by default)
         [-p|--pin num ]            (GPIO pin number.  default=25)
         [-q|--quiet]               (supress informational messages)
         [-r|--reset-time num]      (wait time between GPIO pin state change.  default=15 secs)

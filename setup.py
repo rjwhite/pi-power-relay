@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup( 
     name                = "pi-power-relay",
-    version             = "1.1",
+    version             = "1.2",
     scripts             = [ 'scripts/pi-power-relay' ],
     author              = "RJ White",
     author_email        = "rj@moxad.com",
