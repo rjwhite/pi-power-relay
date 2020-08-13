@@ -2,9 +2,9 @@
 
 # pi-power-relay --help
 
-# see if host(s) on an outside network are reachable via ping.  If not, reset a 
-# device, likely a cable-modem, that is known to be flakey, by power cycling
-# it via a relay
+# see if host(s) on an outside network are reachable via ping.  If not,
+# reset a device, likely a cable-modem, that is known to be flakey,
+# by power cycling it via a relay
 
 # This is intended to be run on a Raspberry Pi, using an 'IoT Power Relay
 # version 2' from Digital Loggers, to use GPIO to power-cycle a device.
@@ -48,23 +48,46 @@ if pi == True:
     import RPi.GPIO as GPIO
     GPIO_active = True
 
-version         = 'v1.2'
+version         = 'v1.3'
 progname        = os.path.basename( sys.argv[0] )
 
 # defaults
 
-reset_time      = 15        # time between setting pin_number HIGH, then LOW
-wait_time       = 10 * 60   # wait time to reset again after a previous reset
-ping_timeout    = 2         # how long to wait for ping to time out
-delay_exit_wait = 0         # delay time before we output a message and exit
-device_name     = 'device'  # use device name in log message
-ping_tries      = 3         # number of times to ping each host
-pin_number      = 25        # GPIO pin number
-hosts           = [ '8.8.8.8' ]     # DNS server
-debug_flag      = False
+reset_time       = 15        # time between setting pin_number HIGH, then LOW
+wait_time        = 10 * 60   # wait time to reset again after a previous reset
+ping_timeout     = 2         # how long to wait for ping to time out
+ping_tries       = 3         # number of times to ping each host
+
+max_reset_time   = 60
+max_wait_time    = 30 * 60
+max_ping_timeout = 10
+max_ping_tries   = 10 
+
+delay_exit_wait  = 0         # delay time before we output a message and exit
+device_name      = 'device'  # use device name in log message
+pin_number       = 25        # GPIO pin number
+hosts            = [ '8.8.8.8' ]     # DNS server
+debug_flag       = False
+quiet_flag       = False
 
 
 # functions
+
+def num_too_big( num, max ):
+    """Test if a number is too large
+
+    Arguments:
+        number being tested
+        maximum value allowed
+    Returns:
+        False:  ok
+        True:   number is too large
+    """
+
+    if num > max:
+        return( True )
+    return( False )
+
 
 def dprint( msg ):
     """debug function.  Print string if --debug|-d option was given
@@ -76,7 +99,7 @@ def dprint( msg ):
     """
 
     if debug_flag == False: return(0)
-    print "debug: " + msg
+    print( "debug: " + msg )
     return(0) ;
 
 
@@ -90,44 +113,29 @@ def usage():
         0
     """
 
-    print "usage: {0:s} [options]*".format( sys.argv[0] )
-    print "   [-d|--debug]               (debugging output)"
-    print "   [-e|--delay-exit num]      (delay time before output and exit.",
-    print " default={0:d} secs)".format ( delay_exit_wait)
+    print( "usage: {} [options]*".format( sys.argv[0] ))
 
-    print "   [-f|--force-reset]         (reset now and quit, despite state or lock)"
-    print "   [-h|--help]                (print this help info)"
+    options = """\
+    [-d|--debug]               debugging output
+    [-e|--delay-exit num]      delay time before output and exit ({:d} secs)
+    [-f|--force-reset]         reset now and quit, despite state or lock
+    [-h|--help]                print this help info
+    [-l|--logfile string]      log filename (none by default)
+    [-m|--maint HH:MM-HH:MM]*  Maintenance time to NOT reset (none by default)
+    [-p|--pin num ]            GPIO pin number ({:d})
+    [-q|--quiet]               supress informational messages
+    [-r|--reset-time num]      wait time between GPIO state change ({:d} secs)
+    [-t|--tries num]           number of ping attempts per host ({:d})
+    [-w|--wait-time num]       reset wait time after previous reset ({:d} secs)
+    [-x|--ping-timeout num]    wait time for ping to time out ({:d} secs)
+    [-D|--device-name string]  name of thing being reset for log ({:s})
+    [-H|--hosts string(s)]     comma-delimited hosts to ping ({:s})
+    [-V|--version]             print version of this program\
+    """
 
-    print "   [-l|--logfile string]      (log filename.",
-    print "none by default)"
-
-    print "   [-m|--maint HH:MM-HH:MM]*  (Maintenance time to NOT reset.",
-    print "none by default)"
-
-
-    print "   [-p|--pin num ]            (GPIO pin number.",
-    print " default={0:d})".format ( pin_number )
-
-    print "   [-q|--quiet]               (supress informational messages)"
-    print "   [-r|--reset-time num]      (wait time between GPIO pin state change.",
-    print " default={0:d} secs)".format ( reset_time )
-
-    print "   [-t|--tries num]           (number of ping attempts per host.",
-    print " default={0:d})".format ( ping_tries )
-
-    print "   [-w|--wait-time num]       (wait time to reset after previous reset.",
-    print " default={0:d} secs)".format ( wait_time )
-
-    print "   [-x|--ping-timeout num]    (wait time for ping to time out.",
-    print " default={0:d} secs)".format ( ping_timeout )
-
-    print "   [-D|--device-name string]  (name of thing being reset for log.",
-    print " default='{0:s}')".format ( device_name )
-
-    print "   [-H|--hosts string(s)]     (comma-delimited hosts to ping.",
-    print " default={0:s})".format ( ','.join( hosts ))
-
-    print "   [-V|--version]             (print version of this program)"
+    print( options.format( delay_exit_wait, pin_number, reset_time,
+        ping_tries, wait_time, ping_timeout, device_name,
+        ','.join( hosts ) ))
 
     return(0)
 
@@ -147,14 +155,17 @@ def ping( host, tries=3, timeout=2 ):
     my_name = sys._getframe().f_code.co_name
 
     for i in range( tries ):
-        response = os.system( "ping -c 1 -w" + str(timeout) + " " + host + " > /dev/null 2>&1" )
+        response = os.system( "ping -c 1 -w" + str(timeout) + " " + 
+                              host + " > /dev/null 2>&1" )
 
         state = "down"
         if response == 0:
             state = "up"
 
-        dprint( "{0:s}(): try #{1:d} ping response (timeout={2:d}) for {3:s} is {4:d} ({5:s})". \
-            format( my_name, i+1, timeout, host, response, state ))
+        msg = "ping response (timeout={0:d}) for {1:s} is {2:d} ({3:s})". \
+            format( timeout, host, response, state )
+
+        dprint( "{0:s}(): try #{1:d} {2:s}".format( my_name, i+1, msg ))
 
         if response == 0:
             return(1)   # up
@@ -215,8 +226,8 @@ def reset_device( pin_num, wait_time, lock_file ):
         GPIO.setup( pin_num, GPIO.OUT )
     else:
         if not quiet_flag:
-            print "GPIO not active.  simulating RESET of {0:s}". \
-                format( device_name )
+            print( "GPIO not active.  simulating RESET of {0:s}". \
+                format( device_name ))
 
     dprint( "{0:s}(): setting PIN {1:d} HIGH". \
             format( my_name, pin_num ))
@@ -283,14 +294,17 @@ def logit( file, message ):
         0:  success
     """
 
+    my_name = sys._getframe().f_code.co_name
+
     try:
         f = open( file, "a" )
         now = time.strftime( "%a %b %d, %Y @ %H:%M" )
         f.write( now + ": " + message )
         f.close()
     except (IOError) as err:
-        sys.stderr.write( "{0:s}: {1:s}\n". \
-            format( progname, err ))
+        err_code, err_msg  = err.args
+        sys.stderr.write( "{}: {}(): {} ({})\n". \
+            format( progname, my_name, err_msg, file ))
         return(1)
 
     return(0)
@@ -307,8 +321,8 @@ def is_reset_locked( file, wait_time ):
         1:  lock filename
         2:  number seconds to honour lock since last reset
     Returns:
-        0:  no lock
-        1:  locked
+        False:  no lock
+        True:   locked
     """
 
     my_name = sys._getframe().f_code.co_name
@@ -318,7 +332,7 @@ def is_reset_locked( file, wait_time ):
         # get the last reset timestamp - its on the 1st line
         last_time = int( f.readline().rstrip())
         if is_int( last_time ) == False:
-            return(0)   # give up - no lock
+            return( False )   # give up - no lock
 
         now = int( time.time())
         diff = now - last_time
@@ -332,13 +346,13 @@ def is_reset_locked( file, wait_time ):
         if diff < wait_time:
             dprint( "{0:s}(): reset lock in place. {1:d} < {2:d} seconds". \
                 format( my_name, diff, wait_time ))
-            return(1)   # locked
+            return( True )   # locked
 
     except (IOError) as err:
         pass
-        return(0)       # no lock
+        return( False )       # no lock
 
-    return(0)
+    return( False )
 
 
 def is_int(s):
@@ -365,7 +379,7 @@ def die( error ):
         1:  message
     """
 
-    sys.stderr.write( "{0:s}: {1:s}\n".format( progname, error ))
+    sys.stderr.write( "{0}: {1}\n".format( progname, error ))
     sys.exit(1)
 
 
@@ -416,7 +430,7 @@ def convert_times( time_range ):
         maint_stop  = e_hr * 60 + e_min
         return( maint_start, maint_stop )
     else:
-        err = "Maintenance time range not of format: HH:MM-HH:MM"
+        err = "maintenance time range not of format: HH:MM-HH:MM"
         raise Exception( err )
 
 
@@ -431,12 +445,11 @@ def main():
     """
 
     global hosts, ping_tries, ping_timeout, reset_time, wait_time, \
-           delay_exit_wait, device_name, pin_number, debug_flag
+           delay_exit_wait, device_name, pin_number, debug_flag, quiet_flag
 
     help_flag       = False
     logging_flag    = False
     force_flag      = False
-    quiet_flag      = False
     lock_file       = "/tmp/pi-power-relay--reset-time"
     log_file        = ""        # LOG file.  none by default
     maint_times     = []        # array of maint times HH:MM-HH:MM
@@ -460,11 +473,17 @@ def main():
                 i = i + 1 ; reset_time = sys.argv[i]
                 if is_int( reset_time ) == False:
                     die( "Not an integer: \'{0:s}\'".format( reset_time ))
+                if ( num_too_big( int( reset_time ), max_reset_time )):
+                    die( "reset time too large ({:s} > {:d})". \
+                        format( reset_time, max_reset_time ))
                 reset_time = int( reset_time )
             elif arg == '-w' or arg == '--wait-time':
                 i = i + 1 ; wait_time = sys.argv[i]
                 if is_int( wait_time ) == False:
-                    die( "Not an integer: \'{0:s}\'".format( wait_time ))
+                    die( "Not an integer: \'{:s}\'".format( wait_time ))
+                if ( num_too_big( int( wait_time ), max_wait_time )):
+                    die( "wait time too large ({:s} > {:d})". \
+                        format( wait_time, max_wait_time ))
                 wait_time = int( wait_time )
             elif arg == '-m' or arg == '--maint':
                 i = i + 1
@@ -473,6 +492,9 @@ def main():
                 i = i + 1 ; ping_tries = sys.argv[i]
                 if is_int( ping_tries ) == False:
                     die( "Not an integer: \'{0:s}\'".format( ping_tries ))
+                if ( num_too_big( int( ping_tries ), max_ping_tries )):
+                    die( "num ping tries too large ({:s} > {:d})". \
+                        format( ping_tries , max_ping_tries ))
                 ping_tries = int( ping_tries )
             elif arg == '-e' or arg == '--delay-exit':
                 i = i + 1 ; delay_exit_wait = sys.argv[i]
@@ -483,6 +505,9 @@ def main():
                 i = i + 1 ; ping_timeout = sys.argv[i]
                 if is_int( ping_timeout ) == False:
                     die( "Not an integer: \'{0:s}\'".format( ping_timeout ))
+                if ( num_too_big( int( ping_timeout ), max_ping_timeout )):
+                    die( "ping timeout too large ({:s} > {:d})". \
+                        format( ping_timeout, max_ping_timeout ))
                 ping_timeout = int( ping_timeout )
             elif arg == '-p' or arg == '--pin':
                 i = i + 1 ; pin_number = sys.argv[i]
@@ -490,7 +515,7 @@ def main():
                     die( "Not an integer: \'{0:s}\'".format( pin_number ))
                 pin_number = int( pin_number )
                 if ( pin_number > 27 ) or ( pin_number < 0 ):
-                    sys.stderr.write( "{0:s}: invalid pin number: \'{1:d}\'\n". \
+                    sys.stderr.write( "{0:s}: invalid pin num: \'{1:d}\'\n". \
                         format( progname, pin_number ))
                     return(1)
             elif arg == '-D' or arg == '--device-name':
@@ -502,7 +527,7 @@ def main():
                 i = i + 1 ; host_list = sys.argv[i]
                 hosts = host_list.split( "," )
             elif arg == '-V' or arg == '--version':
-                print "version: {0:s}".format( version )
+                print( "version: {0:s}".format( version ))
                 return(0)
             else:
                 m = re.match( "^\-", arg )
@@ -516,8 +541,9 @@ def main():
                     return(1)
 
         except IndexError as err:
-            sys.stderr.write( "{0:s}: {1:s}.  Missing argument value to \'{2:s}\'?\n". \
-                format( progname, err, arg ))
+            msg = "Missing argument value to \'{0:s}\'?\n".format( arg )
+            sys.stderr.write( "{0:s}: {1:s}.  {2:s}\n". \
+                format( progname, str(err), msg ))
             return(1)
 
         i = i+1
@@ -533,13 +559,13 @@ def main():
             try:
                 ( maint_start, maint_end ) = convert_times( maint_str )
             except Exception as err:
-                sys.stderr.write( "{0:s}: {1:s}\n".format( progname, err ))
+                sys.stderr.write( "{}: {}\n".format( progname, err ))
                 return(1)
-            dprint( "maint start-mins = {0:d}, end-mins = {1:d} for period {2:s}". \
+            dprint( "maint start={0:d}, end={1:d} (mins) for period {2:s}". \
                 format( maint_start, maint_end, maint_str ))
 
             if ( c_total_mins > maint_start ) and ( c_total_mins < maint_end ):
-                dprint( "currently in maintenance interval of {0:s}.  Quitting.". \
+                dprint( "now in maintenance interval of {0:s}.  Quitting.". \
                     format( maint_str ))
                 return(0)
             else:
@@ -567,57 +593,60 @@ def main():
     else:
         # development/debugging code
         dprint( "I'm NOT running on a Raspberry Pi (" + os.uname()[4] + ")"  )
-        dprint( "Assuming I'm a development/test box - will NOT shutdown device" )
+        dprint( "Assuming a development/test box - will NOT shutdown device" )
 
-
-    # see if we want to force a reset, no matter what
-
-    if force_flag:
-        reset_device( pin_number, reset_time, lock_file )
-
-        if not quiet_flag:
-            print "{0:s} reset at {1:s}". \
-                format( device_name, time.strftime( "%a %b %d, %Y %H:%M:%S" ))
-
-        return(0)
-
+    # see if the network stil reachable
 
     state = test_network( hosts, ping_tries, ping_timeout )
+    if state:
+        # still up
+        dprint( "Nothing to do. All is well.  exiting." )
+        return(0)
 
-    # If network down (state = 0), reset device
+    # see if the device is locked from a recent reset
+    device_locked = False
     try:
-        if state:
-            # still up
-            dprint( "Nothing to do. All is well.  exiting." )
-            return(0)
-
-        if is_reset_locked( lock_file, wait_time ):
-            dprint( "timing lock set.  skipping reset" )
-        else:
-            if ( logging_flag ):
-                msg = "{0:s}: network unreachable.  resetting {1:s}\n". \
-                    format( progname, device_name )
-                logit( log_file, msg )
-
-            # been long enough since last reset.  do it now
-
-            reset_device( pin_number, reset_time, lock_file )
-
-            # informational message to print.  Get the real time first
-            # before a potential delay exit
-
-            msg = "{0:s} reset at {1:s}". \
-                format( device_name, time.strftime( "%a %b %d, %Y %H:%M:%S" ))
-
-            if ( delay_exit_wait ):
-                dprint( "delay exit.  waiting {0:d} seconds".format( delay_exit_wait ))
-                time.sleep( delay_exit_wait )
-
-            if not quiet_flag:
-                print msg
-
+        device_locked = is_reset_locked( lock_file, wait_time )
     except ( KeyboardInterrupt ) as err:
         pass
+
+    if device_locked:
+        dprint( "found a timing lock" )
+        # the device is locked from resetting
+        if force_flag == False:
+            dprint( "timing lock in effect.  skipping the reset" )
+            return(0)
+        else:
+            # force the reset despite the lock
+            dprint( "over-riding device timing lock because of force flag" )
+    else:
+        dprint( "no device timing lock found" )
+
+    # ok, let's do it...
+    if ( logging_flag ):
+        msg = "{0:s}: network unreachable.  resetting {1:s}\n". \
+            format( progname, device_name )
+        logit( log_file, msg )
+
+    # been long enough since last reset.  do it now
+    try:
+        reset_device( pin_number, reset_time, lock_file )
+    except ( KeyboardInterrupt ) as err:
+        pass
+
+    # Informational message to print
+    # Get the real time first before a potential delay exit
+
+    msg = "{0:s} reset at {1:s}". \
+        format( device_name, time.strftime( "%a %b %d, %Y %H:%M:%S" ))
+
+    if ( delay_exit_wait ):
+        dprint( "delay exit.  waiting {0:d} seconds". \
+            format( delay_exit_wait ))
+        time.sleep( delay_exit_wait )
+
+    if not quiet_flag:
+        print( msg )
 
     return(0)
 
