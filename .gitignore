@@ -1,2 +1,5 @@
 build
-README.dist
+tmp
+__pycache__
+RCS
+info

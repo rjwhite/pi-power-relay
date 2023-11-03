@@ -14,6 +14,7 @@ pi-power-relay \- power cycle a device from a Raspberry Pi when network connecti
 .B [\-x ping-timeout]
 .B [\-D device-name]
 .B [\-H host-list]
+.B [\-L lock-file]
 .SH OPTIONS
 .TP
 \fB\-d|--debug\fR
@@ -57,6 +58,10 @@ name of thing being reset for log.  default='device'
 .TP
 \fB\-H|--hosts\fR string(s)
 comma-delimited hosts to ping.  default=8.8.8.8
+.TP
+\fB\-L|--lockfile \fR string
+lock filename.  This is used in conjunction with the timer set by
+the -w/--wait-time option to prevent resets happening too often.
 .TP
 \fB\-V|--version\fR
 print version of the program and exit
@@ -112,15 +117,10 @@ This is typically run from the cron every couple of minutes.
 .PP
 If run on something other than a Raspberry Pi, it will assume it is
 a development or test box and will NOT do the actual shutdown, but
-will still do everything else.  On the Raspberry Pi, you will need the
-RPi.GPIO module installed
-.PP
-    sudo apt-get install rpi.gpio
-.PP
-This module will only imported if run on a Raspberry Pi.
+will still do everything else.  
 .SH AUTHOR
 RJ White
 .br
-rj@moxad.com
+rj.white@moxad.com
 .br
 Moxad Enterprises Inc.

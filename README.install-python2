@@ -1,0 +1,67 @@
+Installing on an ancient Python2 system, without pip
+----------------------------------------------------
+
+The code will work with both Python2 and Python3, but the packaging
+and distribution of this code is strongly tied to Python3.  If you
+are using Python3, this should install effortlessly.  However, if
+you are using Python2, on an ancient system that does not have pip,
+and you don't want to jump through the hurdles of getting pip, or
+want to avoid messing up your existing installation by installing
+pip and other stuff on a system-wide basis, then do the following.
+
+Create a destination for the Python modules.  
+The last sub-directory must be pi_power_relay_moxad.  For eg:
+
+    mkdir /home/rj/lib/python/pi_power_relay_moxad
+
+Download the source code - whether from GitHub or The Python Package Index.
+If it is the Python Package Index (Pypi.org), then you can get it from
+under "Download files" and download the compressed tar-ball (tar.gz).
+Uncompress it into your preferred source tree.  For eg:
+
+    # lets say you downloaded into your default Downloads directory
+    # create a source directory if needed
+
+    mkdir /home/rj/src
+
+    # assuming it's version 2.0.   Use the appropriate version number
+
+    cd /home/rj/src
+    mv /home/rj/Downloads/pi_power_relay_moxad-2.0.tar.gz  .
+    gunzip pi_power_relay_moxad-2.0.tar.gz      # uncompress it
+    tar xf pi_power_relay_moxad-2.0.tar         # extract files
+    rm pi_power_relay_moxad-2.0.tar             # no longer need tarball
+
+Now copy the modules into the target lib directory you first created
+
+    cd pi_power_relay_moxad-2.0/src/pi_power_relay_moxad
+    cp -p *.py  /home/rj/lib/python/pi_power_relay_moxad
+
+Now create the wrapper script to call the main() entry point
+and put the program into your preferred bin directory, like say
+/home/rj/bin/pi-power-relay.
+You need to add your module destination directory to sys.path.  
+In this example, it was /home/rj/lib/python.
+
+Note  it would be '/home/rj/lib/python' and not 
+'/home/rj/lib/python/pi_power_relay_moxad'.
+You may need to change the first line to point to where your python
+interpreter really is.
+
+    #!/usr/bin/python
+
+    import re
+    import sys
+    sys.path.append( '/home/rj/lib/python' )
+    from pi_power_relay_moxad.pi_power_relay import main
+
+    if __name__ == '__main__':
+        sys.exit(main())
+
+Make sure the wrapper program has execute permissions:
+
+    chmod 755 /home/rj/bin/pi-power-relay
+
+Test:
+    rehash                  # update your PATH on C-shell derivatives
+    pi-power-relay --help

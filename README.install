@@ -1,0 +1,18 @@
+On the Raspberry Pi, you will need the RPi.GPIO module installed.
+
+The module RPi.GPIO should be installed automatically if you install this
+package with 'make install' if down-loaded from Github, or installed with
+'pip install pi-power-relay-moxad' from Pypi.org.  It will do this because
+of the dependencies set in the file pyproject.toml which pip will use.
+
+If it does not get installed automatically for some reason, then on a
+debian based Linux system, a (system-wide) install can be done with:
+
+    sudo apt-get install rpi.gpio
+
+or you can install it from the Python package Index with:
+
+    python3 -m pip install RPi.GPIO
+
+This RPi.GPIO module will only be imported by the program if run on a
+Raspberry Pi.

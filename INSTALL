@@ -1,7 +1,0 @@
-Install this software with 'make install'.
-If you install it as root, it will install into /usr/local/bin.
-If you don't install it as root, it will be installed in your $HOME/bin
-
-To install the man page, use 'make man'.
-If you install it as root, it will install into /usr/local/man/man1
-If you don't install it as root, it will be installed into $HOME/doc/man/man1

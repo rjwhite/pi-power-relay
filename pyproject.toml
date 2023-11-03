@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pi_power_relay_moxad"
+version = "2.0"
+authors = [
+  { name="RJ White", email="rj.white@moxad.com" },
+]
+
+description = "power cycle device from a Raspberry Pi when network connectivity lost"
+readme = "README.md"
+
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 2",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Intended Audience :: End Users/Desktop",
+    "Natural Language :: English"
+]
+
+dependencies = [
+    "RPi.GPIO",
+]
+
+[project.urls]
+Homepage = "https://github.com/rjwhite/pi-power-relay"
+
+[project.scripts]
+pi-power-relay   = "pi_power_relay_moxad.pi_power_relay:main"

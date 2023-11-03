@@ -9,12 +9,12 @@
 
 1.2     Oct 28, 2018
          - added a -m|--maint option to specify a known maintenance time
-           that your outside network conection will not be available.
+           that your outside network connection will not be available.
            Can be given multiple times.
            During these time periods, do NOT reset the device
         - made main line coding into a main() function and call it if
           __name__ == '__main__'
-        - made proper docstrings for functions instead of traditional
+        - made proper doc-strings for functions instead of traditional
           comments before the function declaration.  (fat lot of
           good it'll do when the command name uses hyphens instead of
           underscores and doesn't end in .py)
@@ -41,3 +41,20 @@
           line lengths now less than 80 characters.
           some info and error messages changed for shorter line lengths.
           logic changed to effect logging and messaging if force flag is set
+
+2.0     Nov 3, 2023
+        COMPLETE OVERHAUL.
+
+        The entire package has been reorganized to utilize modern best
+        practices for Python packaging and distribution.  The program has
+        now been changed to be a module and uses the main() function as
+        an entry point for a wrapper program that imports and calls it.
+        It is no longer using setup() and disttools, but instead has pip
+        as the front-end for a build, and uses a back-end of hatchling,
+        as defined in the pyproject.toml file.  
+
+        - added option -L/--lockfile option
+        - added --dns-hosts to be accepted along with -H and --hosts
+          for better clarity
+        - added default dns host of 8.8.4.4 to go along with 8.8.8.8
+        - functions moved to a separate module.  A lot of refactoring.
