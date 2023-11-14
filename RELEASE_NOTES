@@ -58,3 +58,11 @@
           for better clarity
         - added default dns host of 8.8.4.4 to go along with 8.8.8.8
         - functions moved to a separate module.  A lot of refactoring.
+
+2.0.1   Nov 14, 2013
+        Makefile:
+            - removed the --editable from install
+        src/pi_power_relay_moxad/__init__.py,pyproject.toml:
+            - updated version
+        README.txt,README.md:
+            - changed example from using --hosts to --dns-hosts

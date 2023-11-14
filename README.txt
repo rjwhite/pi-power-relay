@@ -28,7 +28,7 @@ will still do everything else.
 
 Example usages
 --------------
-    % pi-power-relay --hosts 208.67.222.222,8.8.8.8 
+    % pi-power-relay --dns-hosts 208.67.222.222,8.8.8.8 
 
 This will ping the hosts 208.67.222.222 and 8.8.8.8.  If either of them responds back
 correctly, then the program will exit with no action.
@@ -74,7 +74,7 @@ There is a help option.  For eg:
         [-D|--device-name string]  name of thing being reset for log (device)
         [-H|--dns-hosts string(s)] comma-delimited hosts to ping (8.8.4.4,8.8.8.8)
         [-L|--lockfile string]     lock-file (/tmp/pi-power-relay--reset-time)
-        [-V|--version]             print version of this program (2.0) 
+        [-V|--version]             print version of this program (2.0.1) 
 
 Python 2
 --------

@@ -23,7 +23,7 @@ install:
 	@if [ `whoami` = 'root' ]; then \
 		echo "DON'T run this as root!" ; \
 	else \
-		pip install --editable . ; \
+		python3 -m pip install . ; \
 	fi
 
 # you shouldn't have to run this 'requirements' since a 'make install'
