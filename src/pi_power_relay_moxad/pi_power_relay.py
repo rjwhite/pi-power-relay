@@ -84,7 +84,7 @@ def main( argv=sys.argv ):
         1:  not ok
     """
 
-    progname = argv[0]
+    progname = os.path.basename( argv[0] )
     if progname == None or progname == "":
         progname = 'pi_power_relay'
 
@@ -191,7 +191,7 @@ def main( argv=sys.argv ):
                 i = i + 1 ; log_file = argv[i]
                 logging_flag = True
             elif arg == '-H' or arg == '--hosts' or arg == '--dns-hosts':
-                # permit --hosts for backward compatibility
+                # permit --dns-hosts and --hosts for backward compatibility
                 i = i + 1 ; val = argv[i]
                 dns_hosts = val.split( "," )
             elif arg == '-V' or arg == '--version':
@@ -214,7 +214,7 @@ def main( argv=sys.argv ):
     # defaults properly
 
     if help_flag:
-        print( "usage: {} [options]*".format( sys.argv[0] ))
+        print( "usage: {} [options]*".format( progname ))
 
         options = """\
         [-d|--debug]               debugging output
@@ -230,7 +230,7 @@ def main( argv=sys.argv ):
         [-w|--wait-time num]       reset wait time after previous reset ({} secs)
         [-x|--ping-timeout num]    wait time for ping to time out ({} secs)
         [-D|--device-name string]  name of thing being reset for log ({})
-        [-H|--dns-hosts string(s)] comma-delimited hosts to ping ({})
+        [-H|--hosts string(s)]     comma-delimited hosts to ping ({})
         [-L|--lockfile string]     lock-file ({})
         [-V|--version]             print version of this program ({})\
         """

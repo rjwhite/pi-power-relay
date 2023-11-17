@@ -59,10 +59,20 @@
         - added default dns host of 8.8.4.4 to go along with 8.8.8.8
         - functions moved to a separate module.  A lot of refactoring.
 
-2.0.1   Nov 14, 2013
+2.0.1   Nov 14, 2023
         Makefile:
             - removed the --editable from install
         src/pi_power_relay_moxad/__init__.py,pyproject.toml:
             - updated version
         README.txt,README.md:
             - changed example from using --hosts to --dns-hosts
+
+2.0.2   Nov 16, 2023
+       - changed the --dns-hosts back to --hosts in the README files.
+         While the default hosts pinged happen to be DNS hosts, they
+         don't have to be.  Just any device that responds to pings.
+       - changed program name from full pathname to just filename.
+         So now pi-power-relay instead of /a/b/c/pi-power-relay
+       - fixed the year in the date of the above 2.0.1 RELEASE-NOTES entry
+         from 2013 to 2023
+       - updated man-page to show correct defaults of host(s) pinged
